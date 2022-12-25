@@ -1,0 +1,254 @@
+---
+title: "STA302 Final Project"
+output: pdf_document
+fontsize: 12pt
+---
+
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE, include=FALSE}
+library(tidyverse) 
+library(latex2exp)
+library(gridExtra)
+data=read_csv("insurance.csv")
+dataclean= na.omit(data)
+selected <- dataclean[sample(1:nrow(dataclean), 1000, replace=F), ]
+set.seed(1)
+split <- sample(1:1000, 500, replace=FALSE) 
+train<- selected[split,]
+test <- selected[-split,]
+```
+
+
+
+The important variables are summarized in the following table.\
+```{r,echo=FALSE,meassage=FALSE,warning=FALSE}
+sum=dataclean[,c(1,3,6, 7)]
+knitr::kable(summary(sum),caption = "Summary Table of the important variable")
+```
+
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+attach(train)
+par(mfrow=c(2,2))
+hist(data$charges,col="pink",main="individual medical cost")
+hist(log(data$charges),col="pink",main="distribution of medical log cost")
+ggplot(data) +
+   ggtitle("Plot of frequencies of charges categoried by smoker")+
+    geom_histogram(aes(x =charges,fill = factor(smoker)), colour = "black", bins = 50,position = "dodge") +
+    labs(y = "Frequency", x = "charges")
+
+library(ggplot2)
+ggplot(data, aes(age, charges)) +
+  geom_smooth(se = FALSE,method="lm", formula = 'y ~ x') +
+  geom_point(aes(color = smoker))+
+  labs(
+    y = "medical expenditure", x = "age",
+    title = "relation between medical expense and age",
+    subtitle = "categoried by smoker"
+
+
+  )
+
+ggplot(data, aes(children, charges)) +
+ geom_smooth(se = FALSE,method="lm", formula = 'y ~ x') +
+  geom_point(aes(color = sex))+
+  labs(
+    y = "medical expenditure", x = "children number",
+    title = "relation between medical expense and children number",
+    subtitle = "categoried by gender"
+
+  )
+
+ggplot(data,aes(bmi, charges)) +
+  geom_smooth(se = FALSE,method="lm", formula = 'y ~ x') +
+  geom_point(aes(color = region))+
+  labs(
+    y = "medical expenditure", x = "Body mass index",
+    title = "relation between medical expense and gender",
+    subtitle = "categoried by region"
+
+  )
+
+
+```
+
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+library(kableExtra)
+m1=lm(charges~age+sex+bmi+smoker+region+children ,data=train)
+kbl(broom::tidy(m1)[,], caption = "Summary Table of Model 1", 
+      digits = 3, format = "markdown", align = "ccccc", padding= 3) 
+
+m10=lm(charges~age ,data=train)
+knitr::kable(anova(m1,m10),cap="ANOVA TABLE For partial F test")
+r <- resid(m1)
+# first check condition 1 and 2
+#condition 1
+plot(charges ~ fitted(m1), main="Y versus Y-hat", xlab="Y-hat", ylab="Y")
+abline(a = 0, b = 1)
+lines(lowess(charges ~ fitted(m1)), lty=2)
+#condition 2
+data2 = data.frame(train$charges, train$age, train$bmi)
+pairs( data2 )
+```
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+train$charges <- log(train$charges)
+m2=lm(charges~age+sex+bmi+smoker+region+children ,data=train)
+kbl(broom::tidy(m2)[,], caption = "Summary Table of Model 2", 
+      digits = 3, format = "markdown", align = "ccccc", padding= 3) 
+
+```
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+train$charges <- log(train$charges)
+m3=lm(charges~age+smoker+region+children ,data=train)
+kbl(broom::tidy(m3)[,], caption = "Summary Table of Model 3", 
+      digits = 3, format = "markdown", align = "ccccc", padding= 3) 
+m10=lm(charges~age ,data=train)
+knitr::kable(anova(m3,m10),cap="ANOVA TABLE For partial F test")
+r <- resid(m3)
+# first check condition 1 and 2
+#condition 1
+plot(charges ~ fitted(m3), main="Y versus Y-hat", xlab="Y-hat", ylab="Y")
+abline(a = 0, b = 1)
+lines(lowess(charges ~ fitted(m3)), lty=2)
+#condition 2
+data2 = data.frame(train$charges, train$age, train$bmi)
+pairs( data2 )
+
+library(car)
+
+plot(rstandard(m3)~fitted(m3), xlab="fitted", ylab="Residuals")
+
+qqnorm(rstandard(m3))
+qqline(rstandard(m3))
+```
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+m4=lm(charges~ bmi + children + region ,data=train)
+kbl(broom::tidy(m4)[,], caption = "Summary Table of Model 4", 
+      digits = 3, format = "markdown", align = "ccccc", padding= 3) 
+```
+
+
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+m10=lm(charges~age ,data=train)
+knitr::kable(anova(m4,m10),cap="ANOVA TABLE For partial F test")
+r <- resid(m4)
+# first check condition 1 and 2
+#condition 1
+plot(charges ~ fitted(m4), main="Y versus Y-hat", xlab="Y-hat", ylab="Y")
+abline(a = 0, b = 1)
+lines(lowess(charges ~ fitted(m4)), lty=2)
+#condition 2
+data2 = data.frame(train$charges, train$children, train$bmi)
+pairs( data2 )
+
+library(car)
+
+plot(rstandard(m4)~fitted(m4), xlab="fitted", ylab="Residuals")
+
+qqnorm(rstandard(m4))
+qqline(rstandard(m4))
+```
+
+
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE, include=FALSE}
+#find outlier
+r <- rstandard(m4)
+out <- which(r > 5 | r < -5)
+out
+# determine whether there are leverage points
+h <- hatvalues(m4)
+threshold <- 2 * ((length(m4$coefficients)+1)/nrow(train))
+w <- which(h > threshold)
+train[w,]
+# find all influence functions
+D <- cooks.distance(m1)
+cutoff <- qf(0.5, length(m1$coefficients), nrow(train)-length(m1$coefficients), lower.tail=T)
+which(D > cutoff)
+fits <- dffits(m4)
+library(car)
+vif(m4)
+```
+
+
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+#model checking
+test$charges <- log(test$charges)
+m5=lm(charges~bmi+region+children ,data=test)
+kbl(broom::tidy(m2)[,], caption = "Summary Table of Model 3", 
+      digits = 3, format = "markdown", align = "ccccc", padding= 3) 
+
+```
+```{r,message=FALSE, echo=FALSE,warning=FALSE}
+r <- resid(m5)
+# first check condition 1 and 2
+#condition 1
+plot(charges ~ fitted(m5), main="Y versus Y-hat", xlab="Y-hat", ylab="Y")
+abline(a = 0, b = 1)
+lines(lowess(charges ~ fitted(m5)), lty=2)
+#condition 2
+data2 = data.frame(test$charges, test$children, test$bmi)
+pairs( data2 )
+plot(rstandard(m5)~fitted(m5), xlab="fitted", ylab="Residuals")
+qqnorm(rstandard(m5))
+qqline(rstandard(m5))
+```
+
+
+
+
+
+```{r}
+
+select = function(model, n)
+{
+  SSres <- sum(model$residuals^2)
+  Rsq <- summary(model)$r.squared
+  Rsq_adj <- summary(model)$adj.r.squared
+  p <- length(model$coefficients) - 1
+  AIC <- n*log(SSres/n) + 2*p     # you could also use AIC()
+  AICc <- AIC + (2*(p+2)*(p+3)/(n-p-1))
+  BIC <- n*log(SSres/n) + (p+2)*log(n)    # could also use BIC()
+  res <- c(SSres, Rsq, Rsq_adj, AIC, AICc, BIC)
+  names(res) <- c("SSres", "Rsq", "Rsq_adj", "AIC", "AIC_c", "BIC")
+  return(res)
+}
+
+# apply to the models
+round(select(m1, nrow(train)))
+round(select(m2, nrow(train)))
+round(select(m3, nrow(train)))
+round(select(m4, nrow(train)))
+round(select(m5, nrow(test)))
+
+
+
+```
+
+
+```{r}
+
+```
+
+Running this function on each model would allow us to extract the values we wish to display in a table that would summarize the results of our model selection approach.
+
+Model | Adjusted $R^2$ | AIC | BIC 
+------|----------------|-----|-----
+Full model | `r round(s1[3], 2)` | `r s1[4]` | `r s1[6]`
+- Birdie Conversion and Putts Per round | `r s3[3]` | `r s3[4]` | `r s3[6]`
+- Putting Average and Putts Per round | `r s5[3]` | `r s5[4]` | `r s5[6]`
+
+
+
+
+
